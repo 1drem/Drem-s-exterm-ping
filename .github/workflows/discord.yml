@@ -1,17 +1,35 @@
-name: Send Discord Message
+name: Roblox Player Watcher
 
 on:
-  push:
-    branches:
-      - main   # runs whenever you push to main branch
+  schedule:
+    - cron: "*/5 * * * *"  # Runs every 5 minutes
+  workflow_dispatch:  # Allows manual trigger
 
 jobs:
-  notify:
+  check_players:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Send message to Discord
+      - name: Check Roblox servers for specific player
         run: |
-          curl -H "Content-Type: application/json" \
-               -X POST \
-               -d "{\"content\": \"🛰️ New push to main by $GITHUB_ACTOR\"}" \
-               ${{ secrets.DISCORD_WEBHOOK }}
+          # === CONFIG ===
+          UNIVERSE_ID= 4862269388       # Replace with your Roblox game’s Universe ID
+          TARGET_USER_ID= 204522864E # The Roblox user ID to watch for
+          DISCORD_USER_ID= 658358324856619078    # Your Discord ID (to ping you)
+
+          # === FETCH ACTIVE SERVERS ===
+          RESPONSE=$(curl -s "https://games.roblox.com/v1/games/$UNIVERSE_ID/servers/Public?sortOrder=Asc&limit=10")
+
+          # === CHECK IF TARGET PLAYER IS PRESENT ===
+          PLAYER_FOUND=$(echo "$RESPONSE" | jq ".data[].players[]? | select(.id == $TARGET_USER_ID) | .username" | tr -d '"')
+
+          if [ ! -z "$PLAYER_FOUND" ]; then
+            echo "Player $PLAYER_FOUND detected online!"
+
+            curl -H "Content-Type: application/json" \
+                 -X POST \
+                 -d "{\"content\": \"<@$DISCORD_USER_ID> 👀 The watched player **$PLAYER_FOUND** just joined the game!\"}" \
+                 ${{ secrets.DISCORD_WEBHOOK }}
+          else
+            echo "Target player not detected."
+          fi

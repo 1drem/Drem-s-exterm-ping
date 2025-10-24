@@ -3,33 +3,68 @@ name: Roblox Player Watcher
 on:
   schedule:
     - cron: "*/5 * * * *"  # Runs every 5 minutes
-  workflow_dispatch:  # Allows manual trigger
+  workflow_dispatch:  # Manual trigger allowed
 
 jobs:
   check_players:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Check Roblox servers for specific player
         run: |
           # === CONFIG ===
-          UNIVERSE_ID= 4862269388       # Replace with your Roblox game’s Universe ID
-          TARGET_USER_ID= 204522864E # The Roblox user ID to watch for
-          DISCORD_USER_ID= 658358324856619078    # Your Discord ID (to ping you)
+          UNIVERSE_ID=4862269388       # Your Roblox game's Universe ID
+          TARGET_USER_ID=204522864 # Roblox user to watch
+          DISCORD_USER_ID=658358324856619078    # Your Discord user ID to ping
+
+          STATE_FILE="player_state.txt"
 
           # === FETCH ACTIVE SERVERS ===
           RESPONSE=$(curl -s "https://games.roblox.com/v1/games/$UNIVERSE_ID/servers/Public?sortOrder=Asc&limit=10")
 
-          # === CHECK IF TARGET PLAYER IS PRESENT ===
+          # === CHECK IF TARGET PLAYER IS ONLINE ===
           PLAYER_FOUND=$(echo "$RESPONSE" | jq ".data[].players[]? | select(.id == $TARGET_USER_ID) | .username" | tr -d '"')
 
-          if [ ! -z "$PLAYER_FOUND" ]; then
-            echo "Player $PLAYER_FOUND detected online!"
+          # === LOAD PREVIOUS STATE (if exists) ===
+          if [ -f "$STATE_FILE" ]; then
+            LAST_STATE=$(cat "$STATE_FILE")
+          else
+            LAST_STATE="offline"
+          fi
+
+          # === CASE 1: Player just joined (was offline, now online) ===
+          if [ -z "$LAST_STATE" ] || [ "$LAST_STATE" = "offline" ] && [ ! -z "$PLAYER_FOUND" ]; then
+            echo "online" > "$STATE_FILE"
+            echo "✅ $PLAYER_FOUND joined the game — sending ping"
 
             curl -H "Content-Type: application/json" \
                  -X POST \
                  -d "{\"content\": \"<@$DISCORD_USER_ID> 👀 The watched player **$PLAYER_FOUND** just joined the game!\"}" \
                  ${{ secrets.DISCORD_WEBHOOK }}
+
+          # === CASE 2: Player still online (no new ping) ===
+          elif [ "$LAST_STATE" = "online" ] && [ ! -z "$PLAYER_FOUND" ]; then
+            echo "✅ $PLAYER_FOUND is still online — no ping needed"
+
+          # === CASE 3: Player left the game ===
+          elif [ "$LAST_STATE" = "online" ] && [ -z "$PLAYER_FOUND" ]; then
+            echo "offline" > "$STATE_FILE"
+            echo "👋 Player left the game — resetting state."
+
           else
-            echo "Target player not detected."
+            echo "🕵️ Player still offline."
+          fi
+
+      - name: Commit updated state
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          if [ -f player_state.txt ]; then
+            git add player_state.txt
+            git commit -m "Update player state" || echo "No changes to commit"
+            git push
           fi

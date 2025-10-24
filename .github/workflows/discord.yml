@@ -38,7 +38,7 @@ jobs:
           # === CASE 1: Player just joined (was offline, now online) ===
           if [ -z "$LAST_STATE" ] || [ "$LAST_STATE" = "offline" ] && [ ! -z "$PLAYER_FOUND" ]; then
             echo "online" > "$STATE_FILE"
-            echo "✅ $PLAYER_FOUND joined the game — sending ping"
+            echo " $PLAYER_FOUND joined ARCHIVED — sending ping"
 
             curl -H "Content-Type: application/json" \
                  -X POST \
@@ -47,7 +47,7 @@ jobs:
 
           # === CASE 2: Player still online (no new ping) ===
           elif [ "$LAST_STATE" = "online" ] && [ ! -z "$PLAYER_FOUND" ]; then
-            echo "✅ $PLAYER_FOUND is still online — no ping needed"
+            echo " $PLAYER_FOUND is online — no ping needed"
 
           # === CASE 3: Player left the game ===
           elif [ "$LAST_STATE" = "online" ] && [ -z "$PLAYER_FOUND" ]; then
@@ -55,7 +55,7 @@ jobs:
             echo "👋 Player left the game — resetting state."
 
           else
-            echo "🕵️ Player still offline."
+            echo "Not online."
           fi
 
       - name: Commit updated state

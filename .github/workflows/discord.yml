@@ -17,7 +17,7 @@ jobs:
         run: |
           # === CONFIG ===
           UNIVERSE_ID=4862269388       # Your Roblox game's Universe ID
-          TARGET_USER_ID=204522864 # Roblox user to watch
+          TARGET_USER_ID=31558822 # Roblox user to watch
           DISCORD_USER_ID=658358324856619078    # Your Discord user ID to ping
 
           STATE_FILE="player_state.txt"

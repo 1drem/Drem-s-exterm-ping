@@ -18,6 +18,6 @@ for server in data.get("data", []):
 if found:
     message = {"content": f"<@YOUR_DISCORD_ID> your tracked player just joined a public server!"}
 else:
-    message = {"content": " Player still offline."}
+    message = {"content": "🕵️ Player still offline."}
 
 requests.post(WEBHOOK_URL, json=message)

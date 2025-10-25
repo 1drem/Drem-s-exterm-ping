@@ -1,23 +1,54 @@
-import requests, os
+name: Roblox Player Watcher
 
-PLACE_ID = os.environ['14038329225']
-TARGET_USER_ID = int(os.environ['31558822'])
-WEBHOOK_URL = os.environ['658358324856619078']
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # every 5 minutes
+  workflow_dispatch:        # allow manual run
 
-url = f"https://games.roblox.com/v1/games/{PLACE_ID}/servers/Public?sortOrder=Asc&limit=10"
-response = requests.get(url)
-data = response.json()
+jobs:
+  check-player:
+    runs-on: ubuntu-latest
 
-found = False
-for server in data.get("data", []):
-    for player in server.get("players", []):
-        print(f"Found player: {player['name']} ({player['id']})")  # Debug line
-        if player["id"] == TARGET_USER_ID:
-            found = True
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-if found:
-    message = {"content": f"<@YOUR_DISCORD_ID> your tracked player just joined a public server!"}
-else:
-    message = {"content": "🕵️ Player still offline."}
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
 
-requests.post(WEBHOOK_URL, json=message)
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run watcher
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
+          PLACE_ID: ${{ secrets.PLACE_ID }}
+          TARGET_USER_ID: ${{ secrets.TARGET_USER_ID }}
+        run: |
+          import requests, os, json
+
+          place_id = os.environ["PLACE_ID"]
+          target_id = int(os.environ["TARGET_USER_ID"])
+          webhook = os.environ["WEBHOOK_URL"]
+
+          url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Asc&limit=10"
+          r = requests.get(url)
+          print("API status:", r.status_code)
+          print("Raw:", r.text[:500])
+
+          found = False
+          for server in r.json().get("data", []):
+              for player in server.get("players", []):
+                  if player["id"] == target_id:
+                      found = True
+
+          if found:
+              msg = {"content": f"<@YOUR_DISCORD_ID> Player is online!"}
+          else:
+              msg = {"content": "🕵️ Player still offline."}
+
+          requests.post(webhook, json=msg)

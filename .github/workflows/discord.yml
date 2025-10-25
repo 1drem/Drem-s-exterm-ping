@@ -30,27 +30,33 @@ jobs:
           TARGET_USER_ID: ${{ secrets.TARGET_USER_ID }}
         run: |
           python - <<'EOF'
-          import requests, os, json
+          import requests, os, json, time
 
           place_id = os.environ["PLACE_ID"]
           target_id = int(os.environ["TARGET_USER_ID"])
           webhook = os.environ["WEBHOOK_URL"]
 
-          url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Asc&limit=10"
-          r = requests.get(url)
-          print("API status:", r.status_code)
-          print("Raw:", r.text[:300])
-
+          base_url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Asc&limit=100"
+          cursor = None
           found = False
-          for server in r.json().get("data", []):
-              for player in server.get("players", []):
-                  if player["id"] == target_id:
-                      found = True
 
-          if found:
-              msg = {"content": f"<@YOUR_DISCORD_ID> Player is online!"}
-          else:
-              msg = {"content": "🕵️ Player still offline."}
+          while True:
+              url = base_url + (f"&cursor={cursor}" if cursor else "")
+              r = requests.get(url)
+              data = r.json()
+              for server in data.get("data", []):
+                  for player in server.get("players", []):
+                      if player["id"] == target_id:
+                          found = True
+                          break
+                  if found:
+                      break
+              cursor = data.get("nextPageCursor")
+              if not cursor or found:
+                  break
+              time.sleep(0.5)  # prevent rate limit
 
+          print("Found:", found)
+          msg = {"content": f"<@YOUR_DISCORD_ID> Player is online!"} if found else {"content": "🕵️ Player still offline."}
           requests.post(webhook, json=msg)
           EOF

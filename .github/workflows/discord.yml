@@ -29,6 +29,7 @@ jobs:
           PLACE_ID: ${{ secrets.PLACE_ID }}
           TARGET_USER_ID: ${{ secrets.TARGET_USER_ID }}
         run: |
+          python - <<'EOF'
           import requests, os, json
 
           place_id = os.environ["PLACE_ID"]
@@ -38,7 +39,7 @@ jobs:
           url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Asc&limit=10"
           r = requests.get(url)
           print("API status:", r.status_code)
-          print("Raw:", r.text[:500])
+          print("Raw:", r.text[:300])
 
           found = False
           for server in r.json().get("data", []):
@@ -52,3 +53,4 @@ jobs:
               msg = {"content": "🕵️ Player still offline."}
 
           requests.post(webhook, json=msg)
+          EOF

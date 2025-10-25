@@ -46,7 +46,7 @@ jobs:
               data = r.json()
               for server in data.get("data", []):
                   for player in server.get("players", []):
-                      if player["id"] == target_id:
+                      if str(player.get("id")) == str(target_id):
                           found = True
                           break
                   if found:

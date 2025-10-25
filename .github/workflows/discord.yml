@@ -2,61 +2,64 @@ name: Roblox Player Watcher
 
 on:
   schedule:
-    - cron: "*/5 * * * *"  # every 5 minutes
-  workflow_dispatch:        # allow manual run
+    - cron: "*/5 * * * *"  # runs every 5 minutes
+  workflow_dispatch:       # allows manual runs
 
 jobs:
   check-player:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.x"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests
-
-      - name: Run watcher
+      - name: Check Roblox Player and Send Discord Webhook
         env:
-          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
           PLACE_ID: ${{ secrets.PLACE_ID }}
           TARGET_USER_ID: ${{ secrets.TARGET_USER_ID }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          python - <<'EOF'
-          import requests, os, json, time
+          python3 - <<'PYCODE'
+import requests, os, json, sys
 
-          place_id = os.environ["PLACE_ID"]
-          target_id = int(os.environ["TARGET_USER_ID"])
-          webhook = os.environ["WEBHOOK_URL"]
+place_id = os.getenv("PLACE_ID")
+target_id = os.getenv("TARGET_USER_ID")
+webhook_url = os.getenv("DISCORD_WEBHOOK")
 
-          base_url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Asc&limit=100"
-          cursor = None
-          found = False
+if not all([place_id, target_id, webhook_url]):
+    print("❌ Missing one or more environment variables.")
+    sys.exit(1)
 
-          while True:
-              url = base_url + (f"&cursor={cursor}" if cursor else "")
-              r = requests.get(url)
-              data = r.json()
-              for server in data.get("data", []):
-                  for player in server.get("players", []):
-                      if str(player.get("id")) == str(target_id):
-                          found = True
-                          break
-                  if found:
-                      break
-              cursor = data.get("nextPageCursor")
-              if not cursor or found:
-                  break
-              time.sleep(0.5)  # prevent rate limit
+found = False
+cursor = None
 
-          print("Found:", found)
-          msg = {"content": f"<@YOUR_DISCORD_ID> Player is online!"} if found else {"content": "🕵️ Player still offline."}
-          requests.post(webhook, json=msg)
-          EOF
+while True:
+    url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Asc&limit=100"
+    if cursor:
+        url += f"&cursor={cursor}"
+
+    try:
+        response = requests.get(url)
+        data = response.json()
+    except Exception as e:
+        print("❌ Error fetching Roblox API:", e)
+        sys.exit(1)
+
+    for server in data.get("data", []):
+        for player in server.get("players", []):
+            print("Checking player:", player.get("id"))
+            if str(player.get("id")) == str(target_id):
+                found = True
+                break
+        if found:
+            break
+
+    cursor = data.get("nextPageCursor")
+    if not cursor or found:
+        break
+
+if found:
+    message = f"The player with ID **{target_id}** is currently in the game! <@658358324856619078>"
+else:
+    message = f"Player **{target_id}** still offline."
+
+print("Result:", message)
+requests.post(webhook_url, json={"content": message})
+PYCODE
